@@ -1,0 +1,33 @@
+{
+  "name": "dsh-harmonyos",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness for HarmonyOS — 一条命令装好:JS-only 替代/裁剪 profile、鸿蒙文件系统补丁、node22 compat loader、自启脚本。装完跑 dsh-ohos 即可。",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "harmonyos",
+    "ohos",
+    "agent"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "dsh-ohos": "./bin/dsh-ohos.js",
+    "dsh-harmonyos": "./bin/dsh-ohos.js"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./compat-loader": "./compat/compat-loader.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "postinstall": "node ./lib/patch.mjs patch && node ./lib/prune.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.2-rc.1",
+    "zstd-codec": "^0.1.5"
+  }
+}

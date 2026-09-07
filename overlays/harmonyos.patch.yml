@@ -1,0 +1,12 @@
+# dsh-harmonyos HarmonyOS profile overlay (web)
+# 原则: 只动「原生依赖/设备上无意义」的行; 纯 JS 功能一律保留。
+# sharp 在鸿蒙走 @img/sharp-wasm32(纯 wasm), 附件/读图可用 → 不禁用。
+- id: subprocess
+  disabled: true        # node-pty: 原生 .node 无法加载, 且设备无 bash, 无意义
+- id: sandbox
+  disabled: true        # koffi: 原生 FFI 无法加载; 系统 App 沙箱已兜底
+- id: bash-sandbox
+  disabled: true        # 无 bash 二进制
+# auto 目录选择器解析 bind host/SSH(依赖被禁用的原生能力) → 换纯 JS browse 变体
+- id: directory-picker
+  name: '@deepseek-ai/dsh-host-directory-picker-browse'
