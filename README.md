@@ -2,11 +2,10 @@
 
 DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿蒙(musl/受限存储)上跑起来。
 
-> **v0.3.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
-> 建议经 [Harmonybrew](https://atomgit.com/Harmonybrew) 安装)。本版把运行时统一到
-> **platform=linux 归一**(brew node26 工具链下原生 dlopen 可用), 并复活**图片处理**
-> (sharp → `@img/sharp-linuxmusl-arm64` 真原生, 已实测)。终端/子进程(koffi)仍在攻坚。
-> License: MIT。
+> **v0.4.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
+> 建议经 [Harmonybrew](https://atomgit.com/Harmonybrew) 安装)。本版: platform=linux 归一 +
+> **图片复活**(sharp 真原生) + **终端/子进程复活** — 真 node-pty 就地编译 + 真 koffi
+> 源码构建并补 `.codesign`(沙箱 dlopen 必需, libc FFI 已实测)。License: MIT。
 
 ## 环境要求
 
@@ -74,7 +73,7 @@ dsh-ohos -- --profile headless "任务"  # 透传任意官方 dsh 参数
 |---|---|---|
 | 平台归一 | `compat/register.mjs` | `process.platform` 归一为 `linux`(module.register 引导)。鸿蒙 node 上报 `openharmony`, 让按平台分发的原生包(sharp 的 `@img/sharp-*-arm64` 等)匹配不到; 归一到 linux 后走**真 musl 原生**(brew node26 域内 dlopen 可用) |
 | 启动器 | `bin/dsh-ohos.js` | 读 `NODE_OHOS`(强制); 首启自愈(patch+prune+**ensure-pty** 就地 node-gyp 编译 node-pty); 固定 `--expose-internals --experimental-sqlite --import compat/register.mjs`; v23+ 受限沙箱自动 `--jitless` |
-| compat loader | `compat/compat-loader.mjs` | 模块重定向: `node:zlib`/`node:module`(原生优先, 旧 node 回退 shim)、`fs-ext`(flock stub, 官方 browser-worker 部署同款)、`koffi`(空 stub, subprocess 的 Windows inspector 顶层构建用; 真 koffi 攻坚中)、`sharp`(**默认不拦截**, 真 native; 设 `DSH_OHOS_SHARP=shim` 可退回抛 `SHARP_UNAVAILABLE` 降级) |
+| compat loader | `compat/compat-loader.mjs` | 模块重定向: `node:zlib`/`node:module`(原生优先, 旧 node 回退 shim)、`fs-ext`(flock stub, 官方 browser-worker 部署同款)、`koffi`(默认走真构建; `DSH_OHOS_KOFFI=shim` 退回 stub)、`sharp`(**默认不拦截**, 真 native; 设 `DSH_OHOS_SHARP=shim` 可退回抛 `SHARP_UNAVAILABLE` 降级) |
 | 源码补丁 | `lib/patch.mjs` | 幂等打官方包源码: 硬链接 EPERM→rename(session/attachment/fs-local)、chmod 600 属主检查跳过(credentials)、sandboxMode 改读 fs 沙箱(permission-presets)、回环免 token(loopback)、settings 旧 API 垫片。**npm 11 嵌套布局下同一包可能有多份实例, 全部实例都会补丁并逐一校验** |
 | profile 层 | `overlays/harmonyos.patch.yml` + `lib/prune.mjs` | overlay 禁用原生行(subprocess/sandbox/bash-sandbox/open-in-app); prune 递归移除 koffi 与 sandbox 宿主包(**保留** node-pty/subprocess-local/picker-auto — ensure-pty 管线与 koffi 攻坚就绪) |
 
@@ -126,8 +125,8 @@ DEEPSEEK_API_KEY: sk-...
 
 ## 已知取舍
 
-- 终端/子进程/沙箱仍禁用(真 koffi 攻坚中; node-pty 管线已就绪, koffi 通过即可开行)
-- `open-in-app` 随 subprocess 一起禁用
+- 沙箱隔离(sandbox)仍禁用; open-in-app 已随 subprocess 启用
+- koffi/node-pty 为**就地源码编译**(首次自愈需 clang/cmake 与 node-gyp, 约 1-2 分钟)
 - session.lock 的 flock 为 stub(单进程下 in-process 写声明已排除并发写者)
 - 受限沙箱(非 brew node 域)下原生 dlopen 仍可能被拒, 以实测为准
 

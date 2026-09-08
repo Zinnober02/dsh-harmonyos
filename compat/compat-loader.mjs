@@ -13,8 +13,9 @@ const SHIMS = {
   'node:zlib': join(HERE, 'zlib-shim.mjs'),
   'node:module': join(HERE, 'module-shim.mjs'),
   'fs-ext': join(HERE, 'fs-ext-shim.mjs'),
-  'koffi': join(HERE, 'koffi-shim.mjs'),
 };
+// koffi: 默认走树里真实构建(自愈 ensure-koffi 已编译+签名); DSH_OHOS_KOFFI=shim 退回 stub。
+if (process.env.DSH_OHOS_KOFFI === 'shim') SHIMS['koffi'] = join(HERE, 'koffi-shim.mjs');
 if (process.env.DSH_OHOS_SHARP === 'shim') SHIMS['sharp'] = join(HERE, 'sharp-shim.mjs');
 const urls = {};
 for (const [k, v] of Object.entries(SHIMS)) urls[k] = pathToFileURL(v).href;

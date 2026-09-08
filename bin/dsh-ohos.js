@@ -9,7 +9,7 @@
 //   dsh-ohos -- <官方dsh参数>   # 透传(如 --profile headless "任务"、--port 3081)
 //   NODE_OHOS=/path/node dsh-ohos   # 指定 node
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, renameSync, copyFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -75,6 +75,63 @@ if (!existsSync(DSLIB)) {
 
 // node-pty 就地编译(ensure-pty): subprocess 行已启用, 需要真实 pty.node。
 // npm --ignore-scripts 跳过构建, 这里用 NODE_OHOS + 同前缀 npm 的 node-gyp 补编译。
+// 找 binary-sign-tool(补 .codesign 段用): hnp / home / PATH
+function signTool() {
+  const cands = [
+    process.env.BINARY_SIGN_TOOL,
+    '/data/service/hnp/bin/binary-sign-tool',
+    join(process.env.HOME || '', '.local', 'bin', 'binary-sign-tool'),
+  ].filter(Boolean);
+  return cands.find((p) => existsSync(p)) || null;
+}
+function codeSign(file) {
+  const tool = signTool();
+  if (!tool) { console.error('dsh-ohos: 无 binary-sign-tool, 无法补 .codesign → ' + file); return false; }
+  const tmp = file + '.signed';
+  const r = spawnSync(tool, ['sign', '-inFile', file, '-outFile', tmp, '-selfSign', '1'], { stdio: 'ignore' });
+  if (r.status !== 0 || !existsSync(tmp)) return false;
+  renameSync(tmp, file);
+  return true;
+}
+
+// koffi 就地构建: 补丁 cnoke(cmake 认 Linux/aarch64) + cnoke 构建 + .codesign 签名。
+function ensureKoffi(nodeBin) {
+  const dirs = [];
+  try { for (const e of readdirSync(NM)) if (e === 'koffi') dirs.push(join(NM, e)); } catch { /* ignore */ }
+  if (dirs.length === 0) { console.error('dsh-ohos: 树里没有 koffi — subprocess 需要真 koffi'); return; }
+  for (const dir of dirs) {
+    const cnoke = join(dir, 'cnoke.cjs');
+    const loaderNode = join(dir, 'build', 'koffi', 'openharmony_arm64', 'koffi.node');
+    const outNode = join(dir, 'build', 'koffi', 'openharmony_arm64', 'v26.8.1_native', 'Release', 'Output', 'koffi.node');
+    if (!existsSync(outNode)) {
+      if (existsSync(cnoke)) {
+        let c = readFileSync(cnoke, 'utf8');
+        const need = '-DCMAKE_SYSTEM_NAME=Linux';
+        if (!c.includes(need)) {
+          c = c.replace('args.push("--no-warn-unused-cli");',
+            'args.push("-DCMAKE_SYSTEM_NAME=Linux");\n    args.push("-DCMAKE_SYSTEM_PROCESSOR=aarch64");\n    args.push("--no-warn-unused-cli");');
+          writeFileSync(cnoke, c);
+        }
+      }
+      console.error('dsh-ohos: 编译 koffi(源码, 需 clang/cmake)…');
+      const r = spawnSync(nodeBin, ['cnoke.cjs', '-P', '.', '-D', 'src/koffi', '--prebuild', '--release'], { cwd: dir, stdio: 'inherit' });
+      if (r.status !== 0 || !existsSync(outNode)) { console.error('dsh-ohos: koffi 编译失败(exit=' + r.status + ')'); process.exit(1); }
+    }
+    // 签名 + 铺路径: koffi 的 JS loader 按运行时 platform 找 build/koffi/<triplet>/koffi.node
+    // (linux → linux_arm64 优先、musl_arm64 兜底); 构建期 cnoke 用的是 openharmony_arm64。
+    // 把签名产物铺到所有 triplet 路径(幂等, 已存在且含 codesign 则跳过)。
+    const signedOk = (f) => existsSync(f) && (() => { try { return readFileSync(f, 'utf8').includes('codesign'); } catch { return false; } })();
+    if (!signedOk(outNode) && !codeSign(outNode)) { console.error('dsh-ohos: koffi 签名失败 → ' + outNode); process.exit(1); }
+    for (const triplet of ['openharmony_arm64', 'linux_arm64', 'musl_arm64']) {
+      const target = join(dir, 'build', 'koffi', triplet, 'koffi.node');
+      if (signedOk(target)) continue;
+      mkdirSync(dirname(target), { recursive: true });
+      copyFileSync(outNode, target);
+      if (!codeSign(target)) { console.error('dsh-ohos: koffi 签名失败 → ' + target); process.exit(1); }
+    }
+  }
+}
+
 function ensurePty(nodeBin) {
   const dirs = [];
   try { for (const e of readdirSync(NM)) if (e === 'node-pty') dirs.push(join(NM, e)); } catch { /* ignore */ }
@@ -134,6 +191,7 @@ if (probeResult.jitless) {
   nodeArgs.push('--jitless');
 }
 ensurePty(nodeBin);
+ensureKoffi(nodeBin);
 nodeArgs.push('--expose-internals', '--experimental-sqlite', '--import', LOADER);
 
 const dash = process.argv.indexOf('--');
