@@ -17,7 +17,9 @@ const SHIMS = {
 const urls = {};
 for (const [k, v] of Object.entries(SHIMS)) urls[k] = pathToFileURL(v).href;
 
-export async function resolve(specifier, context, nextResolve) {
+// resolve 必须是同步函数: module.registerHooks()(node26 推荐, 无 DEP0205)只接受同步钩子;
+// module.register() 同样接受同步钩子(nextResolve 返回的 Promise 由框架等待), 两种注册方式通用。
+export function resolve(specifier, context, nextResolve) {
   const parent = context.parentURL ?? '';
   const shim = SHIMS[specifier];
   if (shim && parent.includes('/node_modules/') && !parent.startsWith(urls[specifier])) {
