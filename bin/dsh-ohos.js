@@ -9,7 +9,7 @@
 //   dsh-ohos -- <官方dsh参数>   # 透传(如 --profile headless "任务"、--port 3081)
 //   NODE_OHOS=/path/node dsh-ohos   # 指定 node
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,6 +72,48 @@ if (!existsSync(DSLIB)) {
   console.error('dsh-ohos: 未找到 ' + DSLIB + ' — 请先在本仓库 npm install(拉取 @deepseek-ai/dsh)');
   process.exit(1);
 }
+
+// node-pty 就地编译(ensure-pty): subprocess 行已启用, 需要真实 pty.node。
+// npm --ignore-scripts 跳过构建, 这里用 NODE_OHOS + 同前缀 npm 的 node-gyp 补编译。
+function ensurePty(nodeBin) {
+  const dirs = [];
+  try { for (const e of readdirSync(NM)) if (e === 'node-pty') dirs.push(join(NM, e)); } catch { /* ignore */ }
+  if (dirs.length === 0) {
+    // npm11 可能嵌套在 @deepseek-ai/dsh/node_modules 等; 浅层补扫
+    try { for (const a of readdirSync(NM)) {
+      const sub = join(NM, a, 'node_modules');
+      try { for (const e of readdirSync(sub)) if (e === 'node-pty') dirs.push(join(sub, e)); } catch { /* ignore */ }
+    } } catch { /* ignore */ }
+  }
+  if (dirs.length === 0) {
+    console.error('dsh-ohos: 树里没有 node-pty(依赖缺失?) — subprocess 行将无法加载');
+    return;
+  }
+  for (const dir of dirs) {
+    const ptyNode = join(dir, 'build', 'Release', 'pty.node');
+    if (existsSync(ptyNode)) continue;
+    // 定位 node-gyp: 优先用与 NODE_OHOS 同前缀的 npm 查全局根(npm i -g 装的布局),
+    // 再退回常见 brew/deveco 前缀布局。node-gyp 12 无 PGO 问题, 直接 rebuild。
+    const npmBin = join(dirname(nodeBin), 'npm');
+    let npmRoot = '';
+    try { npmRoot = execFileSync(npmBin, ['root', '-g'], { encoding: 'utf8' }).trim(); } catch { /* ignore */ }
+    const gypCandidates = [
+      ...(npmRoot ? [join(npmRoot, 'npm', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js')] : []),
+      join(dirname(dirname(nodeBin)), 'lib', 'node_modules', 'npm', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'),
+    ];
+    const gyp = gypCandidates.find((p) => existsSync(p));
+    if (!gyp) { console.error('dsh-ohos: 找不到 node-gyp(' + gypCandidates.join(', ') + ') — 无法编译 node-pty'); process.exit(1); }
+    console.error('dsh-ohos: 编译 node-pty → ' + ptyNode);
+    const r = spawnSync(nodeBin, [gyp, 'rebuild'], {
+      cwd: dir, stdio: 'inherit',
+      env: { ...process.env, CC: process.env.CC || 'clang', CXX: process.env.CXX || 'clang++' },
+    });
+    if (r.status !== 0 || !existsSync(ptyNode)) {
+      console.error('dsh-ohos: node-pty 编译失败(exit=' + r.status + ') — subprocess 行启用但无法加载, 启动中止');
+      process.exit(1);
+    }
+  }
+}
 function probe(nodeBin) {
   return new Promise((resolve) => {
     const c = spawn(nodeBin, ['-e', '0'], { stdio: 'ignore' });
@@ -91,6 +133,7 @@ if (probeResult.jitless) {
   console.error('dsh-ohos: 检测到当前 node 在受限沙箱无法分配可执行内存, 使用 --jitless(仅 CLI/服务可用)');
   nodeArgs.push('--jitless');
 }
+ensurePty(nodeBin);
 nodeArgs.push('--expose-internals', '--experimental-sqlite', '--import', LOADER);
 
 const dash = process.argv.indexOf('--');

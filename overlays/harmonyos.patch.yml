@@ -1,14 +1,16 @@
 # dsh-harmonyos HarmonyOS profile overlay (web)
 # 原则: 只动「原生依赖/设备上无意义」的行; 纯 JS 功能一律保留。
 # sharp 在鸿蒙走 @img/sharp-wasm32(纯 wasm), 附件/读图可用 → 不禁用。
+# node-pty: brew node26 下可编译, 但 dsh-subprocess 的 POSIX spawn 依赖真 koffi(libc FFI),
+# 而 koffi.node 在受限沙箱 dlopen 仍被拒(攻坚中) → v0.3 维持禁用; ensure-pty 管线保留备用。
 - id: subprocess
-  disabled: true        # node-pty: 原生 .node 无法加载, 且设备无 bash, 无意义
+  disabled: true
 - id: sandbox
   disabled: true        # koffi: 原生 FFI 无法加载; 系统 App 沙箱已兜底
 - id: bash-sandbox
   disabled: true        # 无 bash 二进制
 - id: open-in-app
-  disabled: true        # 0.1.3 新增, 等 subprocess 服务; 鸿蒙无 subprocess, 「用应用打开」亦无意义
+  disabled: true        # 0.1.3 新增, 依赖 subprocess 服务; 同 subprocess 一起保持禁用
 # auto 目录选择器解析 bind host/SSH(依赖被禁用的原生能力) → 换纯 JS browse 变体
 - id: directory-picker
   name: '@deepseek-ai/dsh-host-directory-picker-browse'

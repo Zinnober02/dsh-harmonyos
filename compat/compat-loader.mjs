@@ -2,7 +2,8 @@
 // 的导入映射到本包 compat shim:
 //   - node:zlib / node:module → 旧 node 缺 zstd/stripTypeScriptTypes 时补齐(新 node 原生优先)
 //   - fs-ext → 鸿蒙无 fs_ext.node, stub 为立即成功(官方 browser worker 部署同款方案)
-//   - sharp → 鸿蒙无预编译二进制, 抛 SHARP_UNAVAILABLE, 调用方走 INVALID_IMAGE 降级路径
+//   - sharp → 默认**不拦截**: 树内 @img/sharp-wasm32(纯 wasm)在 node>=22.16 下可直接处理图片。
+//     设 DSH_OHOS_SHARP=shim 可退回“抛 SHARP_UNAVAILABLE → INVALID_IMAGE 降级”旧行为。
 import { pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +13,9 @@ const SHIMS = {
   'node:zlib': join(HERE, 'zlib-shim.mjs'),
   'node:module': join(HERE, 'module-shim.mjs'),
   'fs-ext': join(HERE, 'fs-ext-shim.mjs'),
-  'sharp': join(HERE, 'sharp-shim.mjs'),
+  'koffi': join(HERE, 'koffi-shim.mjs'),
 };
+if (process.env.DSH_OHOS_SHARP === 'shim') SHIMS['sharp'] = join(HERE, 'sharp-shim.mjs');
 const urls = {};
 for (const [k, v] of Object.entries(SHIMS)) urls[k] = pathToFileURL(v).href;
 
