@@ -107,5 +107,13 @@ console.error(`dsh-ohos: node=${nodeBin}${probeResult.jitless ? ' --jitless' : '
 console.error(`dsh-ohos: dsh=${DSLIB}\ndsh-ohos: overlay=${OVERLAY}`);
 
 const child = spawn(nodeBin, [...nodeArgs, DSLIB, ...args], { stdio: 'inherit', env: process.env });
+// 信号转发: wrapper 被杀时必须把 dsh 子进程一起带走, 否则 server 孤儿化、端口一直被占
+// (node server 持有 listen fd, 父进程死了它照样活着)。SIGKILL 无法捕获, 属固有局限。
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  process.on(sig, () => {
+    try { child.kill(sig); } catch {}
+    process.exit(sig === 'SIGINT' ? 130 : 143);
+  });
+}
 child.on('error', (e) => { console.error('dsh-ohos: 启动失败:', e.message); process.exit(1); });
 child.on('exit', (code, sig) => process.exit(code === null ? (sig ? 1 : 0) : code));
