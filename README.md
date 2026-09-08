@@ -44,6 +44,20 @@ dsh-ohos -- --port 3081
 npm i -g dsh-harmonyos@latest --ignore-scripts
 ```
 
+### 可选环境变量
+
+| 变量 | 作用 | 默认 |
+|---|---|---|
+| `NODE_OHOS` | 指定 node(≥22.16, 推荐 26) | 必填, 未设报错 |
+| `DSH_OHOS_FORCE_DANGER=1` | 强制非沙箱执行(OHOS 无 OS 沙箱后端) | 默认注入 |
+| `DSH_RG_PATH` | 指定 ripgrep 路径(glob/grep 用) | prebuilt/rg(AGC 签名) |
+
+受限沙箱(如 pi agent 环境)内 prebuilt 二进制可能被 exec 白名单拦截, 用本机受信 rg:
+```sh
+DSH_RG_PATH="$HOME/.local/bin/rg" dsh-ohos
+```
+真机(非受限沙箱)默认即可, 无需设置。
+
 > 首次启动自愈: patch(源码补丁) + prune + prebuilt 铺位(koffi/node-pty, AGC 签名) +
 > sharp wasm32 后端确认 + seed 权限默认(danger-full-access)。升级/重装后 marker 版本不一致会自动重跑。
 
