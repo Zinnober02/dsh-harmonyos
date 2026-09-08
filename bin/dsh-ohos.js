@@ -9,7 +9,7 @@
 //   dsh-ohos -- <官方dsh参数>   # 透传(如 --profile headless "任务"、--port 3081)
 //   NODE_OHOS=/path/node dsh-ohos   # 指定 node
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, renameSync, copyFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, renameSync, copyFileSync, cpSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -147,6 +147,19 @@ function ensureKoffi(nodeBin) {
   }
 }
 
+// sharp 原生后端: npm 平台门控(os:linux,libc:musl)在鸿蒙(openharmony)永不安装,
+// 从 prebuilt/sharp-linuxmusl-arm64-<ver>/ 物化到 node_modules/@img/sharp-linuxmusl-arm64。
+function ensureSharp() {
+  const src = join(ROOT, 'prebuilt', 'sharp-linuxmusl-arm64-0.35.4');
+  if (!existsSync(src)) return;
+  const dst = join(NM, '@img', 'sharp-linuxmusl-arm64');
+  const marker = join(dst, 'lib', 'sharp-linuxmusl-arm64-0.35.4.node');
+  if (existsSync(marker)) return;
+  mkdirSync(dst, { recursive: true });
+  cpSync(src, dst, { recursive: true });
+  console.error('dsh-ohos: 物化 sharp 原生后端(prebuilt)');
+}
+
 function ensurePty(nodeBin) {
   const dirs = [];
   try { for (const e of readdirSync(NM)) if (e === 'node-pty') dirs.push(join(NM, e)); } catch { /* ignore */ }
@@ -215,6 +228,7 @@ if (probeResult.jitless) {
   console.error('dsh-ohos: 检测到当前 node 在受限沙箱无法分配可执行内存, 使用 --jitless(仅 CLI/服务可用)');
   nodeArgs.push('--jitless');
 }
+ensureSharp();
 ensurePty(nodeBin);
 ensureKoffi(nodeBin);
 nodeArgs.push('--expose-internals', '--experimental-sqlite', '--import', LOADER);
