@@ -22,17 +22,44 @@ DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿
   未配置时 `dsh-ohos` / `patch.mjs` 会**直接报错**(不静默回落)。
 - 官方 dsh 及其依赖由 npm 拉取(`@deepseek-ai/dsh` 0.1.3-alpha.2)。
 
-## 安装 (HarmonyOS / 受限沙箱)
+## 安装
+
+### ① npm 安装(推荐, 最终用户)
+
+```sh
+npm i -g dsh-harmonyos --ignore-scripts
+```
+
+> 为什么带 `--ignore-scripts`: 依赖树里的 koffi 等原生包在鸿蒙无预编译产物、cmake 又
+> 不认 HarmonyOS, 其 install 脚本必然失败。本发行包把原生包**剪出依赖树**(首启自愈自动
+> 执行 `patch + prune`, 纯 JS), 因此可以安全跳过所有 install 脚本。
+
+启动:
+```sh
+dsh-ohos          # → http://127.0.0.1:3080 (token 见启动日志)
+dsh-ohos -- --port 3081     # 换端口 / 透传任意官方参数
+```
+
+若 PATH 里的 node 不是 26(如系统还留着旧 deveco node), 用环境变量指定:
+```sh
+export NODE_OHOS="$(brew --prefix)/opt/node/bin/node"   # node26
+```
+升级:
+```sh
+npm i -g dsh-harmonyos@latest --ignore-scripts
+```
+
+### ② 源码/开发模式(git clone + npm link)
 
 ```sh
 git clone <本仓库> dsh-harmonyos && cd dsh-harmonyos
 npm install                # postinstall 自动: patch(补丁) + prune(剪枝)
-npm link                   # 暴露 dsh-ohos 命令(开发模式; 见下方「升级」警告)
+npm link                   # 暴露 dsh-ohos 命令(开发模式)
 dsh-ohos                   # web UI → http://127.0.0.1:3080 (token 见启动日志)
 ```
 
-`npm install` 不用 `--ignore-scripts`: 本包的 postinstall 只跑 patch/prune(纯 JS),
-原生编译问题已由 prune 解决。
+> ⚠️ 开发模式下(仓库内 `npm link`)**不要**再用 `npm i -g dsh-harmonyos` 覆盖: 会把软链
+> 替换成普通目录、拆掉开发环境。仓库内升级走下方「升级官方 dsh」流程。
 
 ## 启动
 
@@ -56,15 +83,18 @@ dsh-ohos -- --profile headless "任务"  # 透传任意官方 dsh 参数
 
 ## 升级官方 dsh
 
+最终用户(npm 安装):
+```sh
+npm i -g dsh-harmonyos@latest --ignore-scripts   # 新版自带自愈, 重启 dsh-ohos 即可
+```
+
+源码/开发模式:
 ```sh
 # 1. 改 package.json 里 @deepseek-ai/dsh 的版本
 # 2. 重装依赖 + 重打补丁
 npm install && npm run patch && npm run prune
 # 3. 重启 dsh-ohos
 ```
-
-> ⚠️ **不要**用 `npm i -g dsh-harmonyos@latest` 升级: 开发模式下全局安装位是软链(npm link),
-> npm 重装会把软链替换成普通目录, 拆掉开发环境。升级一律走上面的仓库内流程。
 
 ## 常用维护命令
 
