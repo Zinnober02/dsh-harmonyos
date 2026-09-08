@@ -2,10 +2,10 @@
 
 DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿蒙(musl/受限存储)上跑起来。
 
-> **v0.5.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
-> 建议经 [Harmonybrew](https://atomgit.com/Harmonybrew) 安装)。本版: platform=linux 归一 +
-> **图片复活**(sharp 真原生) + **终端/子进程复活**, 且 koffi/node-pty 提供 **鸿蒙 PC 预编译
-> 产物(prebuilt/, hmsign-release AGC 签名, 全局可信)** — 用户首启零编译零工具链。License: MIT。
+> **v0.5.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**。鸿蒙 PC 预编译(koffi/node-pty,
+> AGC 签名) + sharp 走 **wasm32**(无原生 dlopen) + **真实 Agent 全链路已跑通**(bash/文件/工具)。
+> 沙箱说明: OHOS 无 OS 沙箱后端 → 默认 danger-full-access 非沙箱直跑(等同本机其它 agent),
+> 全局搜索工具(ripgrep)强制沙箱故禁用。License: MIT。
 
 ## 环境要求
 

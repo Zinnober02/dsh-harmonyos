@@ -9,7 +9,7 @@
 //   dsh-ohos -- <官方dsh参数>   # 透传(如 --profile headless "任务"、--port 3081)
 //   NODE_OHOS=/path/node dsh-ohos   # 指定 node
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, renameSync, copyFileSync, cpSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, renameSync, copyFileSync, mkdirSync, rmSync, appendFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -150,15 +150,14 @@ function ensureKoffi(nodeBin) {
 // sharp 原生后端: npm 平台门控(os:linux,libc:musl)在鸿蒙(openharmony)永不安装,
 // 从 prebuilt/sharp-linuxmusl-arm64-<ver>/ 物化到 node_modules/@img/sharp-linuxmusl-arm64。
 function ensureSharp() {
-  const src = join(ROOT, 'prebuilt', 'sharp-linuxmusl-arm64-0.35.4');
-  if (!existsSync(src)) return;
-  const dst = join(NM, '@img', 'sharp-linuxmusl-arm64');
-  const marker = join(dst, 'lib', 'sharp-linuxmusl-arm64-0.35.4.node');
-  if (existsSync(marker)) return;
-  mkdirSync(dst, { recursive: true });
-  cpSync(src, dst, { recursive: true });
-  console.error('dsh-ohos: 物化 sharp 原生后端(prebuilt)');
+  // sharp 后端 = @img/sharp-wasm32(纯 wasm, sharp 可选依赖自动安装, 无平台门控)。
+  // @img/sharp-linuxmusl-arm64 无法在鸿蒙 npm 安装(os:linux/libc:musl 门控)且 .node 在此沙箱
+  // dlopen 不稳 → 存在则移除, 强制 sharp 走 wasm 后端(实测 decode/resize OK)。
+  const img = join(NM, '@img');
+  const bad = join(img, 'sharp-linuxmusl-arm64');
+  if (existsSync(bad)) { rmSync(bad, { recursive: true, force: true }); console.error('dsh-ohos: 移除 sharp linuxmusl(改走 wasm32)'); }
 }
+
 
 function ensurePty(nodeBin) {
   const dirs = [];
@@ -242,6 +241,22 @@ const args = dash === -1
 console.error(`dsh-ohos: node=${nodeBin}${probeResult.jitless ? ' --jitless' : ''}`);
 console.error(`dsh-ohos: dsh=${DSLIB}\ndsh-ohos: overlay=${OVERLAY}`);
 
-const child = spawn(nodeBin, [...nodeArgs, DSLIB, ...args], { stdio: 'inherit', env: process.env });
+// 首启 seed: ~/.dsh/settings.yaml 无 permission 段时补 defaultPreset=danger-full-access
+// (鸿蒙无 OS 沙箱后端; danger = 非沙箱直跑, 等同本机其它 agent)
+function seedPermissionDefault() {
+  const home = process.env.HOME || '';
+  const sp = join(home, '.dsh', 'settings.yaml');
+  try {
+    if (!existsSync(sp)) return;
+    const txt = readFileSync(sp, 'utf8');
+    if (/^permission:/m.test(txt)) return;
+    appendFileSync(sp, '\npermission:\n  defaultPreset: danger-full-access\n');
+    console.error('dsh-ohos: 已 seed permission.defaultPreset=danger-full-access(鸿蒙无沙箱后端)');
+  } catch { /* ignore */ }
+}
+seedPermissionDefault();
+const childEnv = { ...process.env };
+if (childEnv.DSH_OHOS_FORCE_DANGER === undefined) childEnv.DSH_OHOS_FORCE_DANGER = '1';
+const child = spawn(nodeBin, [...nodeArgs, DSLIB, ...args], { stdio: 'inherit', env: childEnv });
 child.on('error', (e) => { console.error('dsh-ohos: 启动失败:', e.message); process.exit(1); });
 child.on('exit', (code, sig) => process.exit(code === null ? (sig ? 1 : 0) : code));
