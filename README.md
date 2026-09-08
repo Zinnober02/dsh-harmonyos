@@ -2,8 +2,11 @@
 
 DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿蒙(musl/受限存储)上跑起来。
 
-> 本分支基于 v0.1.0 跟进官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时从 node22 切换到 **node26**(原生 zstd),
-> 并将「node22 补齐」类兼容层改造为「原生优先/按需 stub」。增量说明与插件化建议见分支 commit 信息。License: MIT。
+> **v0.3.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
+> 建议经 [Harmonybrew](https://atomgit.com/Harmonybrew) 安装)。本版把运行时统一到
+> **platform=linux 归一**(brew node26 工具链下原生 dlopen 可用), 并复活**图片处理**
+> (sharp → `@img/sharp-linuxmusl-arm64` 真原生, 已实测)。终端/子进程(koffi)仍在攻坚。
+> License: MIT。
 
 ## 环境要求
 
@@ -13,7 +16,7 @@ DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿
   brew install node        # 默认即 node 26
   node --version           # v26.x
   ```
-  装好后通过环境变量把 dsh 指向它(默认 node 就是 26, 一般无需额外指定):
+  装好后通过环境变量把 dsh 指向它:
   ```sh
   # ~/.zshrc
   export NODE_OHOS="$(brew --prefix)/opt/node/bin/node"
@@ -30,9 +33,9 @@ DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿
 npm i -g dsh-harmonyos --ignore-scripts
 ```
 
-> 为什么带 `--ignore-scripts`: 依赖树里的 koffi 等原生包在鸿蒙无预编译产物、cmake 又
-> 不认 HarmonyOS, 其 install 脚本必然失败。本发行包把原生包**剪出依赖树**(首启自愈自动
-> 执行 `patch + prune`, 纯 JS), 因此可以安全跳过所有 install 脚本。
+> 为什么带 `--ignore-scripts`: 依赖树里的 koffi 等原生包在鸿蒙 install 脚本必失败
+> (cmake 不认 HarmonyOS)。本发行包在**首启自愈**里统一处理: patch(补丁)+ prune(剪枝)
+> + ensure-pty(node-pty 就地编译, 备用), 纯 JS, 可安全跳过所有 install 脚本。
 
 启动:
 ```sh
@@ -40,10 +43,6 @@ dsh-ohos          # → http://127.0.0.1:3080 (token 见启动日志)
 dsh-ohos -- --port 3081     # 换端口 / 透传任意官方参数
 ```
 
-若 PATH 里的 node 不是 26(如系统还留着旧 deveco node), 用环境变量指定:
-```sh
-export NODE_OHOS="$(brew --prefix)/opt/node/bin/node"   # node26
-```
 升级:
 ```sh
 npm i -g dsh-harmonyos@latest --ignore-scripts
@@ -69,17 +68,27 @@ dsh-ohos -- --port 3081               # 透传官方参数, 换端口(调试推�
 dsh-ohos -- --profile headless "任务"  # 透传任意官方 dsh 参数
 ```
 
-## 适配机制(4 层)
+## 适配机制
 
 | 层 | 机制 | 说明 |
 |---|---|---|
-| 启动器 | `bin/dsh-ohos.js` | 读 `NODE_OHOS`; 首启自愈(patch+prune); 固定 `--expose-internals --experimental-sqlite --experimental-loader compat`; v23+ 受限沙箱自动 `--jitless` |
-| compat loader | `compat/compat-loader.mjs` | 模块重定向: `node:zlib`/`node:module`(原生优先, 旧 node 回退 shim)、`fs-ext`(flock stub, 官方 browser-worker 部署同款方案)、`sharp`(抛 `SHARP_UNAVAILABLE`, 图片附件走 INVALID_IMAGE 降级) |
+| 平台归一 | `compat/register.mjs` | `process.platform` 归一为 `linux`(module.register 引导)。鸿蒙 node 上报 `openharmony`, 让按平台分发的原生包(sharp 的 `@img/sharp-*-arm64` 等)匹配不到; 归一到 linux 后走**真 musl 原生**(brew node26 域内 dlopen 可用) |
+| 启动器 | `bin/dsh-ohos.js` | 读 `NODE_OHOS`(强制); 首启自愈(patch+prune+**ensure-pty** 就地 node-gyp 编译 node-pty); 固定 `--expose-internals --experimental-sqlite --import compat/register.mjs`; v23+ 受限沙箱自动 `--jitless` |
+| compat loader | `compat/compat-loader.mjs` | 模块重定向: `node:zlib`/`node:module`(原生优先, 旧 node 回退 shim)、`fs-ext`(flock stub, 官方 browser-worker 部署同款)、`koffi`(空 stub, subprocess 的 Windows inspector 顶层构建用; 真 koffi 攻坚中)、`sharp`(**默认不拦截**, 真 native; 设 `DSH_OHOS_SHARP=shim` 可退回抛 `SHARP_UNAVAILABLE` 降级) |
 | 源码补丁 | `lib/patch.mjs` | 幂等打官方包源码: 硬链接 EPERM→rename(session/attachment/fs-local)、chmod 600 属主检查跳过(credentials)、sandboxMode 改读 fs 沙箱(permission-presets)、回环免 token(loopback)、settings 旧 API 垫片。**npm 11 嵌套布局下同一包可能有多份实例, 全部实例都会补丁并逐一校验** |
-| profile 层 | `overlays/harmonyos.patch.yml` + `lib/prune.mjs` | overlay 禁用原生行(subprocess/sandbox/bash-sandbox/open-in-app)、目录选择器换纯 JS browse 变体; prune 递归移除 koffi/node-pty 及 5 个宿主包 |
+| profile 层 | `overlays/harmonyos.patch.yml` + `lib/prune.mjs` | overlay 禁用原生行(subprocess/sandbox/bash-sandbox/open-in-app); prune 递归移除 koffi 与 sandbox 宿主包(**保留** node-pty/subprocess-local/picker-auto — ensure-pty 管线与 koffi 攻坚就绪) |
 
 补丁锚点为精确代码片段, 失配即**报错拒绝**(绝不静默打错); 门控: node26(原生 loader)下
 自动跳过 cordis-loader v0 补丁。
+
+## 功能状态(实测)
+
+| 能力 | 状态 |
+|---|---|
+| Web UI / 会话 / 附件(文字) | ✅ |
+| **图片附件 / 读图**(sharp native linuxmusl) | ✅ v0.3 复活, 已实测 decode/resize/encode |
+| 终端 / 子进程(subprocess) | ⏸ node-pty 可编译可加载, 但 spawn 依赖真 koffi(libc FFI); koffi.node dlopen 仍被沙箱拒, 攻坚中 |
+| 沙箱隔离 | ⏸ koffi 依赖; 由系统 App 沙箱兜底 |
 
 ## 升级官方 dsh
 
@@ -117,10 +126,10 @@ DEEPSEEK_API_KEY: sk-...
 
 ## 已知取舍
 
-- 无终端/子进程/沙箱(bash 设备上没有, 原生模块加载不了); 系统 App 沙箱兜底
-- 图片处理(sharp)不可用: 图片附件报「不支持」, 普通附件/会话不受影响
+- 终端/子进程/沙箱仍禁用(真 koffi 攻坚中; node-pty 管线已就绪, koffi 通过即可开行)
+- `open-in-app` 随 subprocess 一起禁用
 - session.lock 的 flock 为 stub(单进程下 in-process 写声明已排除并发写者)
-- `open-in-app` 已禁用(依赖被禁的 subprocess 服务)
+- 受限沙箱(非 brew node 域)下原生 dlopen 仍可能被拒, 以实测为准
 
 ## License
 
