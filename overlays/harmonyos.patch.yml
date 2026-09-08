@@ -13,7 +13,7 @@
   disabled: false       # 0.1.3 新增, 依赖 subprocess 服务; 随 subprocess 启用
 # fs-search(glob/grep): 走 ctx.subprocess 强制沙箱后端且无权限升级参数; 鸿蒙无后端 → 禁用
 - id: tool-fs-search
-  disabled: true
+  disabled: false       # DSH_RG_PATH(预编译 musl rg) 已就位; danger 下可跑(实测 glob/grep 正常)
 # auto 目录选择器解析 bind host/SSH(依赖被禁用的原生能力) → 换纯 JS browse 变体
 - id: directory-picker
   name: '@deepseek-ai/dsh-host-directory-picker-browse'

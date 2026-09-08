@@ -2,7 +2,7 @@
 
 DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿蒙 PC(musl arm64 / 受限存储)上完整跑起来。
 
-> **v0.6.1**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
+> **v0.7.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
 > 建议经 [Harmonybrew](https://atomgit.com/Harmonybrew) 安装)。koffi/node-pty 为 **鸿蒙 PC 预编译**
 > (prebuilt/, hmsign-release AGC 签名, 全局可信), sharp 走 **wasm32**(无原生 dlopen 依赖)。
 > **真实 Agent 全链路已跑通**(deepseek-v4-flash → 思考 → bash/文件工具 → 交付, headless 与 web 均实测)。
@@ -56,7 +56,7 @@ npm i -g dsh-harmonyos@latest --ignore-scripts
 | compat loader | `compat/compat-loader.mjs` | 模块重定向: `node:zlib`/`node:module`(原生优先, 旧 node 回退 shim)、`fs-ext`(flock stub)、`koffi`(默认走真构建; `DSH_OHOS_KOFFI=shim` 退回 stub)、sharp 不拦截(wasm32 后端) |
 | 源码补丁 | `lib/patch.mjs` | 幂等打官方包: 硬链接 EPERM→rename、chmod 600 属主检查跳过、回环免 token、settings 旧 API 垫片、**sandbox-policy 默认 mode=danger**(OHOS 无 OS 沙箱后端)。**npm 11 嵌套布局多实例全部补丁并逐一校验** |
 | profile 层 | `overlays/harmonyos.patch.yml` + `lib/prune.mjs` | overlay **启用** subprocess/sandbox/bash-sandbox/open-in-app, **禁用** tool-fs-search(强制沙箱且无权限升级参数); prune 仅移除 pwsh-sandbox |
-| 预编译 | `prebuilt/` | koffi-3.2.1 / node-pty-1.2.0-beta.15(linux-arm64-musl, N-API, **hmsign-release AGC 签名**) → 首启秒铺, 免编译免工具链; 版本不匹配自动回退源码编译 |
+| 预编译 | `prebuilt/` | koffi-3.2.1 / node-pty-1.2.0-beta.15(linux-arm64-musl, N-API) + **rg**(ripgrep, musl) — 均 **hmsign-release AGC 签名** → 免编译免工具链; 版本不匹配自动回退源码编译 |
 
 补丁锚点为精确代码片段, 失配即**报错拒绝**(绝不静默打错)。
 
@@ -70,7 +70,7 @@ npm i -g dsh-harmonyos@latest --ignore-scripts
 | 图片附件 / 读图(sharp **wasm32**) | ✅ 实测 decode/resize/encode |
 | bash / shell 工具 | ✅ 非沙箱直跑(danger-full-access) |
 | OS 级沙箱隔离 | ❌ OHOS 无后端(非 linux 内核能力) → 默认 danger 直跑, 等同本机其它 agent |
-| 全局搜索 glob/grep(ripgrep) | ❌ 强制沙箱后端且无权限升级参数 → 已禁用 |
+| 全局搜索 glob/grep(ripgrep) | ✅ v0.7 恢复: fs-search 走 `DSH_RG_PATH` → 预编译 musl rg(AGC 签名, prebuilt/rg), danger 下实测正常 |
 
 ## 配 API key
 
@@ -98,7 +98,7 @@ npm install && npm link && dsh-ohos
 ## 已知取舍
 
 - 无 OS 沙箱: 默认 danger-full-access 非沙箱执行(个人设备语义, 同 Claude Code/pi 本机行为)
-- glob/grep/全局搜索不可用(工具强制沙箱; 系统 `rg` 存在也救不了——工具用包内二进制+子进程沙箱)
+- 预编译 rg 的 exec 在受限 pi 沙箱内可能被白名单拒(本沙箱只认受信 inode), 真机无此限制; 可用 `DSH_RG_PATH` 指向本机受信 rg
 - 预编译仅覆盖 koffi 3.2.1 / node-pty 1.2.0-beta.15; 升级需配套新 prebuilt 或走源码编译回退
 - prebuilt 为 AGC 签名全局可信; 源码编译回退产物为机器本地自签
 - session.lock 的 flock 为 stub(单进程语义已由 in-process 写声明保证)

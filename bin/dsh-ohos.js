@@ -257,6 +257,10 @@ function seedPermissionDefault() {
 seedPermissionDefault();
 const childEnv = { ...process.env };
 if (childEnv.DSH_OHOS_FORCE_DANGER === undefined) childEnv.DSH_OHOS_FORCE_DANGER = '1';
+if (childEnv.DSH_RG_PATH === undefined) {
+  const prg = join(ROOT, 'prebuilt', 'rg');
+  if (existsSync(prg)) childEnv.DSH_RG_PATH = prg;
+}
 const child = spawn(nodeBin, [...nodeArgs, DSLIB, ...args], { stdio: 'inherit', env: childEnv });
 child.on('error', (e) => { console.error('dsh-ohos: 启动失败:', e.message); process.exit(1); });
 child.on('exit', (code, sig) => process.exit(code === null ? (sig ? 1 : 0) : code));
