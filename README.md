@@ -7,10 +7,17 @@ DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿
 
 ## 环境要求
 
-- **node >= 22.16**(带原生 zstd), 强烈推荐 **node26**。通过环境变量指定:
+- **node >= 22.16**(带原生 zstd), 强烈推荐 **node26**。
+- **鸿蒙 PC 建议直接用 [Harmonybrew](https://atomgit.com/Harmonybrew) 安装 node**(该源的默认 `node` 公式即 **26**, 原生 zstd 开箱可用):
+  ```sh
+  brew install node        # 默认即 node 26
+  node --version           # v26.x
+  ```
+  装好后通过环境变量把 dsh 指向它(默认 node 就是 26, 一般无需额外指定):
   ```sh
   # ~/.zshrc
-  export NODE_OHOS="$HOME/.harmonybrew/opt/node/bin/node"
+  export NODE_OHOS="$(brew --prefix)/opt/node/bin/node"
+  # 例: ~/.harmonybrew/opt/node/bin/node
   ```
   未配置时 `dsh-ohos` / `patch.mjs` 会**直接报错**(不静默回落)。
 - 官方 dsh 及其依赖由 npm 拉取(`@deepseek-ai/dsh` 0.1.3-alpha.2)。
