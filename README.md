@@ -2,10 +2,12 @@
 
 DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿蒙 PC(musl arm64 / 受限存储)上完整跑起来。
 
-> **v0.7.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
+> **v0.7.3**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
 > 建议经 [Harmonybrew](https://atomgit.com/Harmonybrew) 安装)。koffi/node-pty 为 **鸿蒙 PC 预编译**
 > (prebuilt/, hmsign-release AGC 签名, 全局可信), sharp 走 **wasm32**(无原生 dlopen 依赖)。
 > **真实 Agent 全链路已跑通**(deepseek-v4-flash → 思考 → bash/文件工具 → 交付, headless 与 web 均实测)。
+> **v0.7.3 修复**: ① `patchAll` 此前漏调用 `patchFsSearch`(glob/grep 补丁从未生效), 已纳入并校验;
+> ② 启动器对 `prebuilt/rg` 强制补执行位(660→755), `prebuilt/rg` 入库模式改为 100755。
 > License: MIT。
 
 ## 环境要求

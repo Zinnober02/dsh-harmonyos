@@ -9,7 +9,7 @@
 //   dsh-ohos -- <官方dsh参数>   # 透传(如 --profile headless "任务"、--port 3081)
 //   NODE_OHOS=/path/node dsh-ohos   # 指定 node
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, renameSync, copyFileSync, mkdirSync, rmSync, appendFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, renameSync, copyFileSync, mkdirSync, rmSync, appendFileSync, chmodSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -259,7 +259,12 @@ const childEnv = { ...process.env };
 if (childEnv.DSH_OHOS_FORCE_DANGER === undefined) childEnv.DSH_OHOS_FORCE_DANGER = '1';
 if (childEnv.DSH_RG_PATH === undefined) {
   const prg = join(ROOT, 'prebuilt', 'rg');
-  if (existsSync(prg)) childEnv.DSH_RG_PATH = prg;
+  if (existsSync(prg)) {
+    try { chmodSync(prg, 0o755); } catch { /* 只读文件系统等情况忽略 */ }
+    childEnv.DSH_RG_PATH = prg;
+  } else {
+    console.error('dsh-ohos: 缺少 prebuilt/rg — glob/grep 不可用(见 README 预编译覆盖)');
+  }
 }
 const child = spawn(nodeBin, [...nodeArgs, DSLIB, ...args], { stdio: 'inherit', env: childEnv });
 child.on('error', (e) => { console.error('dsh-ohos: 启动失败:', e.message); process.exit(1); });
