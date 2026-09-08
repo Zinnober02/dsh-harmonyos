@@ -54,8 +54,8 @@ npm i -g dsh-harmonyos@latest --ignore-scripts
 | 平台归一 | `compat/register.mjs` | `process.platform` 归一为 `linux`(module.register 引导)。鸿蒙 node 上报 `openharmony`, 会让按平台分发的包匹配失败 |
 | 启动器 | `bin/dsh-ohos.js` | 读 `NODE_OHOS`(强制); 首启自愈; 注入 `DSH_OHOS_FORCE_DANGER=1`(默认非沙箱); seed `permission.defaultPreset=danger-full-access`; 固定 `--expose-internals --experimental-sqlite --import compat/register.mjs`; 受限沙箱自动 `--jitless` |
 | compat loader | `compat/compat-loader.mjs` | 模块重定向: `node:zlib`/`node:module`(原生优先, 旧 node 回退 shim)、`fs-ext`(flock stub)、`koffi`(默认走真构建; `DSH_OHOS_KOFFI=shim` 退回 stub)、sharp 不拦截(wasm32 后端) |
-| 源码补丁 | `lib/patch.mjs` | 幂等打官方包: 硬链接 EPERM→rename、chmod 600 属主检查跳过、回环免 token、settings 旧 API 垫片、**sandbox-policy 默认 mode=danger**(OHOS 无 OS 沙箱后端)。**npm 11 嵌套布局多实例全部补丁并逐一校验** |
-| profile 层 | `overlays/harmonyos.patch.yml` + `lib/prune.mjs` | overlay **启用** subprocess/sandbox/bash-sandbox/open-in-app, **禁用** tool-fs-search(强制沙箱且无权限升级参数); prune 仅移除 pwsh-sandbox |
+| 源码补丁 | `lib/patch.mjs` | 幂等打官方包: 硬链接 EPERM→rename、chmod 600 属主检查跳过、回环免 token、settings 旧 API 垫片、**sandbox-policy 默认 mode=danger**、**fs-search 支持 DSH_RG_PATH**。**npm 11 嵌套布局多实例全部补丁并逐一校验** |
+| profile 层 | `overlays/harmonyos.patch.yml` + `lib/prune.mjs` | overlay **启用** subprocess/sandbox/bash-sandbox/open-in-app/**tool-fs-search**(走 DSH_RG_PATH); prune 仅移除 pwsh-sandbox |
 | 预编译 | `prebuilt/` | koffi-3.2.1 / node-pty-1.2.0-beta.15(linux-arm64-musl, N-API) + **rg**(ripgrep, musl) — 均 **hmsign-release AGC 签名** → 免编译免工具链; 版本不匹配自动回退源码编译 |
 
 补丁锚点为精确代码片段, 失配即**报错拒绝**(绝不静默打错)。
@@ -99,7 +99,7 @@ npm install && npm link && dsh-ohos
 
 - 无 OS 沙箱: 默认 danger-full-access 非沙箱执行(个人设备语义, 同 Claude Code/pi 本机行为)
 - 预编译 rg 的 exec 在受限 pi 沙箱内可能被白名单拒(本沙箱只认受信 inode), 真机无此限制; 可用 `DSH_RG_PATH` 指向本机受信 rg
-- 预编译仅覆盖 koffi 3.2.1 / node-pty 1.2.0-beta.15; 升级需配套新 prebuilt 或走源码编译回退
+- 预编译覆盖 koffi 3.2.1 / node-pty 1.2.0-beta.15 / rg(musl ripgrep); 升级需配套新 prebuilt 或走源码编译回退
 - prebuilt 为 AGC 签名全局可信; 源码编译回退产物为机器本地自签
 - session.lock 的 flock 为 stub(单进程语义已由 in-process 写声明保证)
 - 受限沙箱(非 brew node 域)下 dlopen 仍可能被拒, 以实测为准
