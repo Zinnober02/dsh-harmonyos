@@ -2,10 +2,10 @@
 
 DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿蒙(musl/受限存储)上跑起来。
 
-> **v0.4.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
+> **v0.5.0**: 基于官方 `@deepseek-ai/dsh` **0.1.3-alpha.2**, 运行时 **node26**(原生 zstd,
 > 建议经 [Harmonybrew](https://atomgit.com/Harmonybrew) 安装)。本版: platform=linux 归一 +
-> **图片复活**(sharp 真原生) + **终端/子进程复活** — 真 node-pty 就地编译 + 真 koffi
-> 源码构建并补 `.codesign`(沙箱 dlopen 必需, libc FFI 已实测)。License: MIT。
+> **图片复活**(sharp 真原生) + **终端/子进程复活**, 且 koffi/node-pty 提供 **鸿蒙 PC 预编译
+> 产物(prebuilt/, hmsign-release AGC 签名, 全局可信)** — 用户首启零编译零工具链。License: MIT。
 
 ## 环境要求
 
@@ -126,7 +126,8 @@ DEEPSEEK_API_KEY: sk-...
 ## 已知取舍
 
 - 沙箱隔离(sandbox)仍禁用; open-in-app 已随 subprocess 启用
-- koffi/node-pty 为**就地源码编译**(首次自愈需 clang/cmake 与 node-gyp, 约 1-2 分钟)
+- 预编译产物仅覆盖 koffi 3.2.1 / node-pty 1.2.0-beta.15(linux-arm64-musl, N-API); 版本升级需配套新 prebuilt 或临时走源码编译
+- 预编译为 hmsign-release(AGC) 签名, 全局可信; 源码回退路径产物为机器本地自签
 - session.lock 的 flock 为 stub(单进程下 in-process 写声明已排除并发写者)
 - 受限沙箱(非 brew node 域)下原生 dlopen 仍可能被拒, 以实测为准
 

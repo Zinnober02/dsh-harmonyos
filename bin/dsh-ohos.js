@@ -103,6 +103,21 @@ function ensureKoffi(nodeBin) {
     const cnoke = join(dir, 'cnoke.cjs');
     const loaderNode = join(dir, 'build', 'koffi', 'openharmony_arm64', 'koffi.node');
     const outNode = join(dir, 'build', 'koffi', 'openharmony_arm64', 'v26.8.1_native', 'Release', 'Output', 'koffi.node');
+    // 预编译优先(AGC 签名): prebuilt/koffi-<版本>-linux-arm64-musl.node → 铺全部 triplet
+    const ver = (() => { try { return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version || ''; } catch { return ''; } })();
+    const pre = join(ROOT, 'prebuilt', 'koffi-' + ver + '-linux-arm64-musl.node');
+    if (existsSync(pre)) {
+      let used = false;
+      for (const triplet of ['openharmony_arm64', 'linux_arm64', 'musl_arm64']) {
+        const target = join(dir, 'build', 'koffi', triplet, 'koffi.node');
+        if (existsSync(target)) continue;
+        mkdirSync(dirname(target), { recursive: true });
+        copyFileSync(pre, target);
+        used = true;
+      }
+      if (used) console.error('dsh-ohos: 使用预编译 koffi(' + ver + ', AGC 签名)');
+      continue;
+    }
     if (!existsSync(outNode)) {
       if (existsSync(cnoke)) {
         let c = readFileSync(cnoke, 'utf8');
@@ -149,6 +164,16 @@ function ensurePty(nodeBin) {
   for (const dir of dirs) {
     const ptyNode = join(dir, 'build', 'Release', 'pty.node');
     if (existsSync(ptyNode)) continue;
+    // 预编译优先(AGC 签名, 免工具链): prebuilt/node-pty-<版本>-linux-arm64-musl.node
+    const ver = (() => { try { return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version || ''; } catch { return ''; } })();
+    const pre = join(ROOT, 'prebuilt', 'node-pty-' + ver + '-linux-arm64-musl.node');
+    if (existsSync(pre)) {
+      mkdirSync(dirname(ptyNode), { recursive: true });
+      copyFileSync(pre, ptyNode);
+      console.error('dsh-ohos: 使用预编译 node-pty(' + ver + ', AGC 签名)');
+      continue;
+    }
+    console.error('dsh-ohos: 无匹配预编译 node-pty(' + ver + '), 走源码编译');
     // 定位 node-gyp: 优先用与 NODE_OHOS 同前缀的 npm 查全局根(npm i -g 装的布局),
     // 再退回常见 brew/deveco 前缀布局。node-gyp 12 无 PGO 问题, 直接 rebuild。
     const npmBin = join(dirname(nodeBin), 'npm');
