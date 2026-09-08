@@ -22,7 +22,7 @@ const port = await new Promise((resolve, reject) => {
   srv.on('error', reject);
 });
 
-const child = spawn(process.env.NODE_OHOS, [WRAP, '--', '--profile', 'web', '--patch', join(ROOT, 'overlays', 'harmonyos.patch.yml'), '--no-open', '--port', String(port)], {
+const child = spawn(process.env.NODE_OHOS, [WRAP, '--port', String(port)], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let log = '', tokenUrl = '';

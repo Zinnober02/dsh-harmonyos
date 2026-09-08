@@ -4,9 +4,10 @@
 //   - 自动挑可用 node: 优先「带原生 zstd 的」(node>=22.16, 免 wasm 兼容层)
 //   - 固定必要参数: --expose-internals --experimental-sqlite --experimental-loader compat
 //   - 挂载 dsh-harmonyos overlay(原生行替换/禁用)
-// 用法:
-//   dsh-ohos                  # 启动 web(127.0.0.1:3080, 作者默认)
-//   dsh-ohos -- <官方dsh参数>   # 透传(如 --profile headless "任务"、--port 3081)
+// 用法: dsh-ohos 之后的参数就是官方 dsh 的 CLI 参数, 原样透传。
+//   dsh-ohos                        # = dsh --profile web(补丁/端口走官方参数, 如 --port 3081)
+//   dsh-ohos --port 3081            # web profile 换端口
+//   dsh-ohos --profile headless "任务"    # 任意官方 profile/参数
 //   NODE_OHOS=/path/node dsh-ohos   # 指定 node
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -93,11 +94,14 @@ if (probeResult.jitless) {
 }
 nodeArgs.push('--expose-internals', '--experimental-sqlite', '--import', LOADER);
 
-const dash = process.argv.indexOf('--');
-const passthrough = dash === -1 ? [] : process.argv.slice(dash + 1);
-const args = dash === -1
-  ? ['--profile', 'web', '--patch', OVERLAY, '--no-open']
-  : passthrough;
+// 参数语义: dsh-ohos 之后的参数就是 dsh 自己的 CLI 参数, 原样透传(不做任何翻译/分隔)。
+// 仅注入发行版固定的适配项 --patch OVERLAY(鸿蒙 overlay, 剪原生插件)与 --no-open
+// (设备无浏览器); 用户没给 --profile 时补默认 web(「装完 dsh-ohos 即用」)。
+const args = (() => {
+  const userArgs = process.argv.slice(2);
+  const hasProfile = userArgs.some((a) => a === '--profile' || a.startsWith('--profile='));
+  return [...(hasProfile ? [] : ['--profile', 'web']), '--patch', OVERLAY, '--no-open', ...userArgs];
+})();
 
 console.error(`dsh-ohos: node=${nodeBin}${probeResult.jitless ? ' --jitless' : ''}`);
 console.error(`dsh-ohos: dsh=${DSLIB}\ndsh-ohos: overlay=${OVERLAY}`);
