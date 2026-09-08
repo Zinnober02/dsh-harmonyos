@@ -86,8 +86,8 @@ dsh-ohos -- --profile headless "任务"  # 透传任意官方 dsh 参数
 |---|---|
 | Web UI / 会话 / 附件(文字) | ✅ |
 | **图片附件 / 读图**(sharp native linuxmusl) | ✅ v0.3 复活, 已实测 decode/resize/encode |
-| 终端 / 子进程(subprocess) | ⏸ node-pty 可编译可加载, 但 spawn 依赖真 koffi(libc FFI); koffi.node dlopen 仍被沙箱拒, 攻坚中 |
-| 沙箱隔离 | ⏸ koffi 依赖; 由系统 App 沙箱兜底 |
+| 终端 / 子进程(subprocess) | ✅ v0.4 复活(真 koffi + 真 node-pty); v0.5 起用 **prebuilt/ AGC 签名预编译**, 首启零编译(版本不匹配自动回退源码编译) |
+| 沙箱隔离 | ⏸ 仍禁用(koffi 已通, 可试开); 由系统 App 沙箱兜底 |
 
 ## 升级官方 dsh
 
