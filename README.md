@@ -120,6 +120,12 @@ npm install && npm link && dsh-ohos
 - session.lock 的 flock 为 stub(单进程语义已由 in-process 写声明保证)
 - 受限沙箱(非 brew node 域)下 dlopen 仍可能被拒, 以实测为准
 
-## License
+## License 与致谢
 
-MIT(见 LICENSE)。基于 dsh-harmonyos(MIT) 改造; 补丁逻辑部分借鉴 dsh-harmonyos-pc(MIT)。
+MIT(见 LICENSE)。本发行版**参考并改编**了多个开源项目：
+- **dsh-harmonyos-pc**(MIT): 补丁逻辑、overlay 机制、八套鸿蒙预设(预设见 `~/.dsh/.agent-presets/` 或 presets/)
+- **dsh-harmony**(MIT): 早期兼容层方法论
+- **dsh-TUI / dsh-desktop**: 发行形态参考(未取代码)
+- 预编译二进制(koffi/node-pty/ripgrep)与依赖(sharp-wasm32/fzstd 等)按各自许可再分发
+
+完整归属与许可说明见 **[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)**。
