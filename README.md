@@ -11,6 +11,10 @@ DeepSeek Harness (dsh) 的 HarmonyOS 适配发行版 —— 让官方 dsh 在鸿
 > 修复 ① `patchSandboxPolicy` 定义了但**从未被 `patchAll` 调用**(与 v0.7.3 的 `patchFsSearch` 同类漏调用);
 > ② rc.1 的 permission 服务在构造期改用 approval policy 反推默认 preset, 不显式指定即抛
 > "composed sandbox and approval defaults match no preset" → 启动器注入 `DSH_PERMISSION_MODE=danger-full-access`。
+> **v0.8.1 修复历史会话迁移 EPERM**: rc.1 新增第 2 条 link 发布路径 `publishCurrentExclusive`
+> (v2→v3 会话迁移), 而原 `patchSession` 用「文件含 MARK 就整体跳过」做幂等 —— 标记来自第 1 条补丁,
+> 于是第 2 条**永远漏补**, 表现为**新建会话正常、打开老会话即 EPERM**。已改逐点幂等 + rename 回退;
+> 同类补齐 `dsh-attachment-local` 的 `publishImmutableAlias`(改 `copyFile` + `COPYFILE_EXCL`, 因源是内容寻址原件不可移走)。
 > License: MIT。
 
 ## 环境要求
