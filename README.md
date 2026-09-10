@@ -125,7 +125,7 @@ mv $D/dsh-harmonyos $D/dsh-harmonyos.bak && mv /tmp/new $D/dsh-harmonyos
 | Web UI / 会话 | ✅ |
 | **Agent 全循环**(模型→bash→文件→交付) | ✅ 实测(headless + web), 默认 deepseek-official / deepseek-v4-flash |
 | 终端 / 子进程(node-pty + koffi, 预编译 AGC) | ✅ |
-| 图片附件 / 读图(sharp **wasm32**) | ✅ 实测 decode/resize/encode |
+| 图片附件 / 读图(sharp **wasm32**) | ✅ 实测 decode/resize/**encode**(webp/jpeg 全阶梯) + `read_image` 端到端 |
 | bash / shell 工具 | ✅ 非沙箱直跑(danger-full-access) |
 | OS 级沙箱隔离 | ❌ OHOS 无后端(非 linux 内核能力) → 默认 danger 直跑, 等同本机其它 agent |
 | 全局搜索 glob/grep(ripgrep) | ✅ v0.7 恢复: fs-search 走 `DSH_RG_PATH` → 预编译 musl rg(AGC 签名, prebuilt/rg), danger 下实测正常 |
@@ -158,6 +158,10 @@ npm install && npm link && dsh-ohos
 - 无 OS 沙箱: 默认 danger-full-access 非沙箱执行(个人设备语义, 同 Claude Code/pi 本机行为)
 - 预编译 rg 的 exec 在受限 pi 沙箱内可能被白名单拒(本沙箱只认受信 inode), 真机无此限制; 可用 `DSH_RG_PATH` 指向本机受信 rg
 - 预编译覆盖 koffi 3.2.1 / node-pty 1.2.0-beta.15 / rg(musl ripgrep); 升级需配套新 prebuilt 或走源码编译回退
+- 图片编解码走 sharp **wasm32**(比原生慢, 但功能完整: decode + resize + webp/jpeg 编码全阶梯实测通过)。
+  曾尝试原生 `@img/sharp-linuxmusl-arm64`: AGC 签名后能过沙箱 dlopen 校验, 但该 musl 预编译绑定需要
+  `libstdc++.so.6`, 而鸿蒙 node 是 musl 构建、系统内无此库 → 原生后端不可用, 维持 wasm32。
+  边界: **1×1 像素**图片编码会报 `vipspng: libpng read error`(libpng 无法处理单像素输出), 实际图片尺寸无此问题
 - prebuilt 为 AGC 签名全局可信; 源码编译回退产物为机器本地自签
 - **会话锁是纯 JS no-op stub**(0.1.5-rc.1 起官方改用 `@deepseek-ai/node-addon-system` 原生 `system.node`,
   按平台分发因此鸿蒙装不上; 补丁把原生绑定加载换成「立即成功」, 语义同既有 `fs-ext` flock stub)
