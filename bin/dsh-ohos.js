@@ -308,5 +308,18 @@ if (childEnv.DSH_RG_PATH === undefined) {
   }
 }
 const child = spawn(nodeBin, [...nodeArgs, DSLIB, ...args], { stdio: 'inherit', env: childEnv });
+// 信号转发: 包装进程本身不持任何状态, 收到 SIGINT/SIGTERM(如 Ctrl-C、smoke/npm test 收尾)
+// 必须原样转给真正的 dsh 子进程。否则包装进程退出后, 子进程被 reparent 到 PID 1 继续占用
+// 端口存活(实测 npm test 收尾会留下孤儿 web 进程), 而它还可能持有 profiles/node_modules 写锁。
+let forwarded = false;
+const forward = (sig) => {
+  if (forwarded || child.exitCode !== null) return;
+  forwarded = true;
+  try { child.kill(sig); } catch { /* ignore */ }
+  // 收尾兜底: 5s 内没退出就强杀, 避免留下孤儿
+  const t = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* ignore */ } }, 5000);
+  if (typeof t.unref === 'function') t.unref();
+};
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => forward(sig));
 child.on('error', (e) => { console.error('dsh-ohos: 启动失败:', e.message); process.exit(1); });
 child.on('exit', (code, sig) => process.exit(code === null ? (sig ? 1 : 0) : code));

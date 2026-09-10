@@ -55,9 +55,11 @@ try {
   }
   if (!ok && !detail) detail = '超时: 240 秒内未完成认证链路';
 } finally {
+  // 收尾必须确认包装进程真的退出: 包装器会把信号转发给 dsh 子进程, 但如果转发链路有意外,
+  // 子进程会被 reparent 到 PID 1 继续占端口并可能持有 profiles 写锁(实测发生过)。
   child.kill('SIGTERM');
-  await sleep(1500);
-  if (child.exitCode === null) child.kill('SIGKILL');
+  for (let i = 0; i < 20 && child.exitCode === null; i++) await sleep(500);
+  if (child.exitCode === null) { child.kill('SIGKILL'); await sleep(1000); }
 }
 
 console.log(ok ? `smoke: PASS — ${detail}` : `smoke: FAIL — ${detail}`);
